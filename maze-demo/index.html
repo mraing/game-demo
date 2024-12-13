@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>迷宫游戏</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #333;
+      }
+      canvas {
+        border: 2px solid #fff;
+        background-color: #111;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="mazeCanvas"></canvas>
+    <script>
+      function generateMaze(rows, cols) {
+        const maze = Array.from({ length: rows }, () => Array(cols).fill(1)); // 初始化迷宫为墙壁
+        const directions = [
+          { dx: 0, dy: -2 }, // 上
+          { dx: 0, dy: 2 }, // 下
+          { dx: -2, dy: 0 }, // 左
+          { dx: 2, dy: 0 }, // 右
+        ];
+
+        function isValid(x, y) {
+          return (
+            x > 0 && y > 0 && x < rows - 1 && y < cols - 1 && maze[x][y] === 1
+          );
+        }
+
+        function shuffle(array) {
+          for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+          }
+          return array;
+        }
+
+        function dfs(x, y) {
+          maze[x][y] = 0; // 当前点设为通路
+          const shuffledDirections = shuffle(directions); // 随机打乱方向
+          for (const { dx, dy } of shuffledDirections) {
+            const nx = x + dx,
+              ny = y + dy;
+            if (isValid(nx, ny)) {
+              maze[x + dx / 2][y + dy / 2] = 0; // 打通两格之间的墙
+              dfs(nx, ny); // 递归生成迷宫
+            }
+          }
+        }
+
+        // 确保生成迷宫后起点和终点连通
+        function isPathExists(maze, start, end) {
+          const rows = maze.length;
+          const cols = maze[0].length;
+          const visited = Array.from({ length: rows }, () =>
+            Array(cols).fill(false)
+          );
+          const directions = [
+            { dx: 0, dy: -1 }, // 上
+            { dx: 0, dy: 1 }, // 下
+            { dx: -1, dy: 0 }, // 左
+            { dx: 1, dy: 0 }, // 右
+          ];
+
+          const stack = [start];
+          visited[start[0]][start[1]] = true;
+
+          while (stack.length > 0) {
+            const [x, y] = stack.pop();
+
+            if (x === end[0] && y === end[1]) {
+              return true;
+            }
+
+            for (const { dx, dy } of directions) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (
+                nx >= 0 &&
+                ny >= 0 &&
+                nx < rows &&
+                ny < cols &&
+                maze[nx][ny] === 0 &&
+                !visited[nx][ny]
+              ) {
+                visited[nx][ny] = true;
+                stack.push([nx, ny]);
+              }
+            }
+          }
+
+          return false;
+        }
+
+        // 从左上角强制开始生成迷宫，确保生成过程不会失败
+        do {
+          for (let i = 0; i < rows; i++) {
+            for (let j = 0; j < cols; j++) {
+              maze[i][j] = 1;
+            }
+          }
+          dfs(1, 1);
+        } while (!isPathExists(maze, [1, 1], [rows - 2, cols - 2]));
+
+        return maze;
+      }
+
+      function findStartAndEnd(maze) {
+        const start = [1, 1];
+        const end = [maze.length - 2, maze[0].length - 2];
+        return { start, end };
+      }
+
+      function findPath(maze, start, end) {
+        const rows = maze.length;
+        const cols = maze[0].length;
+        const visited = Array.from({ length: rows }, () =>
+          Array(cols).fill(false)
+        );
+        const directions = [
+          { dx: 0, dy: -1 }, // 上
+          { dx: 0, dy: 1 }, // 下
+          { dx: -1, dy: 0 }, // 左
+          { dx: 1, dy: 0 }, // 右
+        ];
+
+        const queue = [[...start, []]]; // 队列：存储 [x, y, path]
+        visited[start[0]][start[1]] = true;
+
+        while (queue.length > 0) {
+          const [x, y, path] = queue.shift();
+          const newPath = [...path, [x, y]];
+
+          // 如果到达终点，返回路径
+          if (x === end[0] && y === end[1]) {
+            return newPath;
+          }
+
+          // 遍历所有方向
+          for (const { dx, dy } of directions) {
+            const nx = x + dx;
+            const ny = y + dy;
+
+            if (
+              nx >= 0 &&
+              ny >= 0 &&
+              nx < rows &&
+              ny < cols &&
+              maze[nx][ny] === 0 &&
+              !visited[nx][ny]
+            ) {
+              visited[nx][ny] = true;
+              queue.push([nx, ny, newPath]);
+            }
+          }
+        }
+
+        return []; // 如果无路径，返回空数组
+      }
+
+      function drawMaze(ctx, maze, cellSize, start, end, playerPosition) {
+        const rows = maze.length;
+        const cols = maze[0].length;
+
+        ctx.clearRect(0, 0, cols * cellSize, rows * cellSize);
+
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            if (maze[y][x] === 1) {
+              ctx.fillStyle = "#fff"; // 墙壁颜色
+            } else {
+              ctx.fillStyle = "#000"; // 通路颜色
+            }
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+
+        // 绘制起点和终点
+        const [startX, startY] = start;
+        const [endX, endY] = end;
+
+        ctx.fillStyle = "#0f0"; // 起点颜色（绿色）
+        ctx.fillRect(startY * cellSize, startX * cellSize, cellSize, cellSize);
+
+        ctx.fillStyle = "#f00"; // 终点颜色（红色）
+        ctx.fillRect(endY * cellSize, endX * cellSize, cellSize, cellSize);
+
+        // 绘制路径
+        ctx.fillStyle = "#00f"; // 路径颜色（蓝色）
+        for (const [px, py] of path) {
+          ctx.fillRect(
+            py * cellSize + cellSize / 4,
+            px * cellSize + cellSize / 4,
+            cellSize / 2,
+            cellSize / 2
+          );
+        }
+
+        // 绘制角色位置
+        const [playerX, playerY] = playerPosition;
+        ctx.fillStyle = "#ff0"; // 角色颜色（黄色）
+        ctx.fillRect(
+          playerY * cellSize + cellSize / 4,
+          playerX * cellSize + cellSize / 4,
+          cellSize / 2,
+          cellSize / 2
+        );
+      }
+
+      // 主流程
+      const rows = 15,
+        cols = 15;
+      const maze = generateMaze(rows, cols);
+      const { start, end } = findStartAndEnd(maze);
+      const path = findPath(maze, start, end);
+      let playerPosition = [...start]; // 初始化角色位置
+
+      const canvas = document.getElementById("mazeCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const cellSize =
+        Math.min(window.innerWidth / cols, window.innerHeight / rows) * 0.8; // 动态调整单元格大小
+      canvas.width = cols * cellSize;
+      canvas.height = rows * cellSize;
+
+      drawMaze(ctx, maze, cellSize, start, end, playerPosition, path);
+
+      // 键盘控制角色移动
+      window.addEventListener("keydown", (e) => {
+        const [x, y] = playerPosition;
+        let newX = x,
+          newY = y;
+
+        if (e.key === "ArrowUp") newX--;
+        if (e.key === "ArrowDown") newX++;
+        if (e.key === "ArrowLeft") newY--;
+        if (e.key === "ArrowRight") newY++;
+
+        // 检查新位置是否在迷宫通路上
+        if (maze[newX]?.[newY] === 0) {
+          playerPosition = [newX, newY];
+          drawMaze(ctx, maze, cellSize, start, end, playerPosition);
+
+          // 检查是否到达终点
+          if (newX === end[0] && newY === end[1]) {
+            setTimeout(() => alert("恭喜你通关了！"), 10);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
